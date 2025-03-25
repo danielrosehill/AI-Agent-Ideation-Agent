@@ -326,12 +326,37 @@ def update_index(assistant_name: str, category: str, file_path: str) -> bool:
             with open(INDEX_FILE, 'r') as f:
                 content = f.readlines()
             
+            # Check if the table header is correctly formatted
+            header_line_index = None
+            separator_line_index = None
+            
+            for i, line in enumerate(content):
+                if "| Date Generated | Assistant Name | Category | Link |" in line:
+                    header_line_index = i
+                if "|----------------|----------------|----------|------|" in line:
+                    separator_line_index = i
+                elif "|----------------|----------------|----------|------||" in line:
+                    # Fix malformed separator line
+                    content[i] = "|----------------|----------------|----------|------|\n"
+                    separator_line_index = i
+            
+            # If header exists but separator is missing or incorrect, fix it
+            if header_line_index is not None and (separator_line_index is None or separator_line_index != header_line_index + 1):
+                if separator_line_index is not None:
+                    content.pop(separator_line_index)
+                content.insert(header_line_index + 1, "|----------------|----------------|----------|------|\n")
+                separator_line_index = header_line_index + 1
+            
             # Find the position to insert the new row (after the table header)
             insert_position = 0
-            for i, line in enumerate(content):
-                if line.startswith("|----"):
-                    insert_position = i + 1
-                    break
+            if separator_line_index is not None:
+                insert_position = separator_line_index + 1
+            else:
+                # If we can't find the separator line, look for any line starting with "|----"
+                for i, line in enumerate(content):
+                    if line.startswith("|----"):
+                        insert_position = i + 1
+                        break
             
             # Insert the new row
             if insert_position > 0:

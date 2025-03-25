@@ -139,9 +139,6 @@ class IdeaGeneratorThread(QThread):
                         self.log_message.emit(f"Generated: {assistant_name} (Category: {category}, Creativity: {display_creativity})")
                         self.log_message.emit(f"Saved to: {file_path}")
                         
-                        # Update the index
-                        update_index(assistant_name, category, file_path)
-                        
                         # Emit the idea generated signal
                         self.idea_generated.emit(assistant_name, category, file_path, display_creativity if creativity_level else "Random")
                         
