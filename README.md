@@ -4,6 +4,8 @@
 
  # AI Assistant Ideation Tool
 
+ ![alt text](screenshots/3.png)
+
 This repository contains a CLI and GUI application designed to facilitate the ideation of AI assistants. It leverages the Ollama API to provide model selection capabilities within both interfaces.
 
 ## Functionality
@@ -13,6 +15,10 @@ The core function of this tool is to assist users in generating ideas for AI ass
 *   **Predefined Folder Structure:** The agent employs a predefined list of folders that are populated using a Python script. This structure is intended to provide a framework for organizing and categorizing ideas. Users should customize these folders to align with their specific needs and the types of agents they wish to develop.
 *   **Customizable Parameters**: Allows users to determine the number of iterations run by the agent as well as the duplication threshold.
 *   **Templating**: The system prompt is produced by a template which also specifies a listing of parameters.
+*   
+## Sample Output (Each Idea Is Generated As A Markdown Document)
+
+![alt text](screenshots/4.png)
 
 ## Usage
 
