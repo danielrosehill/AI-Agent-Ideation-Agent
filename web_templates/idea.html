@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ idea.name }} - AI Agent Idea{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ idea.name }}</li>
+            </ol>
+        </nav>
+        
+        <div class="idea-content mb-4">
+            {{ idea.content_html|safe }}
+        </div>
+        
+        <div class="pagination-nav d-flex justify-content-between mb-4">
+            {% if prev_idea %}
+            <a href="{{ url_for('view_idea', idea_path=prev_idea.path) }}" class="btn btn-outline-primary" target="_blank">
+                <i class="bi bi-arrow-left"></i> Previous: {{ prev_idea.name }}
+            </a>
+            {% else %}
+            <div></div>
+            {% endif %}
+            
+            {% if next_idea %}
+            <a href="{{ url_for('view_idea', idea_path=next_idea.path) }}" class="btn btn-outline-primary" target="_blank">
+                Next: {{ next_idea.name }} <i class="bi bi-arrow-right"></i>
+            </a>
+            {% else %}
+            <div></div>
+            {% endif %}
+        </div>
+        
+        <div class="text-center">
+            <a href="{{ url_for('index') }}" class="btn btn-primary">
+                <i class="bi bi-house-door"></i> Back to Index
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

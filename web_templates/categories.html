@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}AI Agent Ideas - Categories{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Categories</h1>
+        
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Category Name</th>
+                        <th>Number of Ideas</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for category in categories %}
+                    <tr>
+                        <td>{{ category.name }}</td>
+                        <td>{{ category.count }}</td>
+                        <td>
+                            <a href="{{ url_for('category', category_name=category.folder_name) }}" class="btn btn-sm btn-primary">
+                                <i class="bi bi-eye"></i> View Ideas
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

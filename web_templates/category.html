@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ category_name }} - AI Agent Ideas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('categories') }}">Categories</a></li>
+                <li class="breadcrumb-item active" aria-current="page">{{ category_name }}</li>
+            </ol>
+        </nav>
+        
+        <h1 class="mb-4">{{ category_name }}</h1>
+        
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Date Generated</th>
+                        <th>Assistant Name</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for idea in ideas %}
+                    <tr>
+                        <td>{{ idea.date }}</td>
+                        <td>{{ idea.name }}</td>
+                        <td>
+                            <a href="{{ url_for('view_idea', idea_path=idea.path) }}" class="btn btn-sm btn-primary" target="_blank">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

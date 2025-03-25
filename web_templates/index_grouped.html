@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}AI Agent Ideas - Grouped View{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="filters sticky-top" style="top: 80px;">
+            <h5><i class="bi bi-funnel"></i> Filters</h5>
+            <form action="{{ url_for('index') }}" method="get" class="search-form">
+                <input type="hidden" name="group" value="category">
+                <div class="mb-3">
+                    <label for="search" class="form-label">Search:</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="search" name="search" value="{{ search_query }}" placeholder="Search ideas...">
+                        <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i></button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="category" class="form-label">Category:</label>
+                    <select class="form-select" id="category" name="category" onchange="this.form.submit()">
+                        <option value="">All Categories</option>
+                        {% for category in categories %}
+                        <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Sort By:</label>
+                    <div class="d-flex">
+                        <select class="form-select me-2" id="sort" name="sort" onchange="this.form.submit()">
+                            <option value="date" {% if sort_by == 'date' %}selected{% endif %}>Date</option>
+                            <option value="name" {% if sort_by == 'name' %}selected{% endif %}>Name</option>
+                            <option value="category" {% if sort_by == 'category' %}selected{% endif %}>Category</option>
+                        </select>
+                        <select class="form-select" id="order" name="order" onchange="this.form.submit()">
+                            <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Descending</option>
+                            <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Ascending</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">View:</label>
+                    <div class="btn-group w-100" role="group">
+                        <a href="{{ url_for('index', category=category_filter, search=search_query, sort=sort_by, order=sort_order) }}" class="btn btn-outline-primary">List</a>
+                        <a href="{{ url_for('index', category=category_filter, search=search_query, sort=sort_by, order=sort_order, group='category') }}" class="btn btn-outline-primary active">Grouped</a>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Apply Filters</button>
+            </form>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <h1 class="mb-4">AI Agent Ideas - Grouped by Category</h1>
+        
+        {% if search_query or category_filter %}
+        <div class="alert alert-info mb-4">
+            <h5 class="alert-heading">Applied Filters:</h5>
+            <p class="mb-0">
+                {% if search_query %}
+                <span class="badge bg-primary me-2">Search: {{ search_query }}</span>
+                {% endif %}
+                {% if category_filter %}
+                <span class="badge bg-secondary me-2">Category: {{ category_filter }}</span>
+                {% endif %}
+                <a href="{{ url_for('index', group='category') }}" class="btn btn-sm btn-outline-primary">Clear Filters</a>
+            </p>
+        </div>
+        {% endif %}
+        
+        {% if grouped_ideas %}
+            {% for category, ideas in grouped_ideas.items() %}
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">{{ category }} ({{ ideas|length }})</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row row-cols-1 row-cols-md-2 g-4">
+                        {% for idea in ideas %}
+                        <div class="col">
+                            <div class="card idea-card h-100">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ idea.name }}</h5>
+                                    <p class="card-text text-muted small">{{ idea.date }}</p>
+                                    <a href="{{ url_for('view_idea', idea_path=idea.path) }}" class="btn btn-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+        <div class="alert alert-warning">
+            <h4 class="alert-heading">No ideas found!</h4>
+            <p>Try adjusting your filters or search query.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
