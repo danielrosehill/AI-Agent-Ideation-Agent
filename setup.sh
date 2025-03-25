@@ -12,9 +12,9 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    python3 -m venv venv
+    python3 -m venv .venv
     if [ $? -ne 0 ]; then
         echo "Error: Failed to create virtual environment."
         exit 1
@@ -25,7 +25,7 @@ fi
 
 # Activate virtual environment and install requirements
 echo "Installing dependencies..."
-source venv/bin/activate
+source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
