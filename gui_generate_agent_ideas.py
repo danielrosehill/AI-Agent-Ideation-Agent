@@ -12,6 +12,7 @@ import sys
 import random
 import re
 import time
+import gc
 from datetime import datetime
 import hashlib
 import difflib
@@ -26,7 +27,7 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QPushButton, QComboBox, QSpinBox, QTextEdit, QProgressBar,
         QRadioButton, QButtonGroup, QLineEdit, QGroupBox, QMessageBox,
-        QSlider, QSplitter, QFrame
+        QSlider, QSplitter, QFrame, QCheckBox
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
     from PyQt6.QtGui import QFont, QIcon
@@ -40,7 +41,7 @@ except ImportError:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QLabel, QPushButton, QComboBox, QSpinBox, QTextEdit, QProgressBar,
         QRadioButton, QButtonGroup, QLineEdit, QGroupBox, QMessageBox,
-        QSlider, QSplitter, QFrame
+        QSlider, QSplitter, QFrame, QCheckBox
     )
     from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
     from PyQt6.QtGui import QFont, QIcon
@@ -59,6 +60,8 @@ TEMPLATE_FILE = os.path.join(REPO_PATH, "templates", "template.md")
 CATEGORIES_DIR = os.path.join(REPO_PATH, "by-category")
 DEFAULT_MODEL = "llama3.2"  # Default to llama3.2
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
+MAX_RETRIES = 3  # Maximum number of retries for failed generations
+RETRY_DELAY = 2  # Delay between retries in seconds
 
 # Worker thread for generating ideas
 class IdeaGeneratorThread(QThread):
@@ -76,6 +79,7 @@ class IdeaGeneratorThread(QThread):
         self.similarity_threshold = similarity_threshold
         self.running = True
         self.unlimited = False
+        self.memory_cleanup_interval = 50  # Clean up memory every 50 generations
         
     def set_unlimited(self, unlimited: bool):
         self.unlimited = unlimited
@@ -98,32 +102,53 @@ class IdeaGeneratorThread(QThread):
         while (self.unlimited or successful_generations < self.num_ideas) and self.running:
             attempts += 1
             
+            # Periodically clean up memory
+            if attempts % self.memory_cleanup_interval == 0:
+                gc.collect()
+            
             # Randomly select a category
             category = random.choice(categories)
             self.progress_update.emit(successful_generations, self.num_ideas if not self.unlimited else -1)
             
-            try:
-                # Generate the idea
-                idea, filename = generate_idea_with_ollama(category, self.model, template)
-                
-                # Check if the idea is similar to existing ideas
-                category_folder = os.path.join(CATEGORIES_DIR, get_category_folder_name(category))
-                existing_ideas = get_existing_ideas(category_folder)
-                
-                if is_similar_idea(idea, existing_ideas, self.similarity_threshold):
-                    self.idea_skipped.emit(f"Similar idea already exists for {category}")
-                    continue
-                
-                # Save the idea
-                file_path = save_idea(idea, category, filename)
-                self.idea_generated.emit(idea, category, file_path)
-                
-                successful_generations += 1
-                
-            except Exception as e:
-                self.error_occurred.emit(f"Error generating idea: {str(e)}")
-                # Wait a bit before trying again
-                time.sleep(1)
+            # Try to generate with retries
+            retry_count = 0
+            generation_successful = False
+            
+            while retry_count < MAX_RETRIES and not generation_successful and self.running:
+                try:
+                    # Generate the idea
+                    idea, filename = generate_idea_with_ollama(category, self.model, template)
+                    
+                    # Check if the idea is similar to existing ideas
+                    category_folder = os.path.join(CATEGORIES_DIR, get_category_folder_name(category))
+                    existing_ideas = get_existing_ideas(category_folder)
+                    
+                    if is_similar_idea(idea, existing_ideas, self.similarity_threshold):
+                        self.idea_skipped.emit(f"Similar idea already exists for {category}")
+                        generation_successful = True  # Consider it successful to avoid retries for similarity
+                        break
+                    
+                    # Save the idea
+                    file_path = save_idea(idea, category, filename)
+                    self.idea_generated.emit(idea, category, file_path)
+                    
+                    successful_generations += 1
+                    generation_successful = True
+                    
+                except Exception as e:
+                    retry_count += 1
+                    error_msg = f"Error generating idea (attempt {retry_count}/{MAX_RETRIES}): {str(e)}"
+                    self.error_occurred.emit(error_msg)
+                    
+                    if retry_count < MAX_RETRIES and self.running:
+                        self.error_occurred.emit(f"Retrying in {RETRY_DELAY} seconds...")
+                        time.sleep(RETRY_DELAY)
+                    else:
+                        self.error_occurred.emit("Max retries reached, skipping this generation")
+            
+            # Small delay between generations to prevent overloading Ollama
+            if self.running and generation_successful:
+                time.sleep(0.1)
         
         self.generation_complete.emit(successful_generations, attempts)
 
@@ -244,6 +269,20 @@ class AIAgentIdeationGenerator(QMainWindow):
         similarity_layout.addLayout(slider_layout)
         config_layout.addWidget(similarity_group)
         
+        # Advanced options
+        advanced_group = QGroupBox("Advanced Options")
+        advanced_layout = QVBoxLayout(advanced_group)
+        
+        self.auto_scroll_checkbox = QCheckBox("Auto-scroll log")
+        self.auto_scroll_checkbox.setChecked(True)
+        advanced_layout.addWidget(self.auto_scroll_checkbox)
+        
+        self.clear_log_button = QPushButton("Clear Log")
+        self.clear_log_button.clicked.connect(self.clear_log)
+        advanced_layout.addWidget(self.clear_log_button)
+        
+        config_layout.addWidget(advanced_group)
+        
         # Generate button
         self.generate_button = QPushButton("Generate Ideas")
         self.generate_button.setMinimumHeight(40)
@@ -302,13 +341,27 @@ class AIAgentIdeationGenerator(QMainWindow):
         
         # Initialize generator thread
         self.generator_thread = None
+        
+        # Setup periodic memory cleanup
+        self.cleanup_timer = QTimer(self)
+        self.cleanup_timer.timeout.connect(self.perform_memory_cleanup)
+        self.cleanup_timer.start(60000)  # Run every minute
+    
+    def perform_memory_cleanup(self):
+        """Perform periodic memory cleanup."""
+        gc.collect()
+    
+    def clear_log(self):
+        """Clear the log text area."""
+        self.log_text.clear()
+        self.log_message("Log cleared")
     
     def check_ollama(self):
         """Check if Ollama is available and load models."""
         self.log_message("Checking Ollama availability...")
         
         try:
-            response = requests.get("http://localhost:11434/api/tags")
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
             if response.status_code != 200:
                 self.show_error("Error: Ollama is not available. Make sure it's running.")
                 return
@@ -316,6 +369,10 @@ class AIAgentIdeationGenerator(QMainWindow):
             self.log_message("Ollama is available.")
             self.load_models()
             
+        except requests.exceptions.ConnectionError:
+            self.show_error("Error: Could not connect to Ollama. Make sure it's running on http://localhost:11434")
+        except requests.exceptions.Timeout:
+            self.show_error("Error: Connection to Ollama timed out. The server might be overloaded.")
         except Exception as e:
             self.show_error(f"Error connecting to Ollama: {str(e)}\nMake sure Ollama is running on http://localhost:11434")
     
@@ -324,17 +381,20 @@ class AIAgentIdeationGenerator(QMainWindow):
         self.log_message("Loading available models...")
         self.model_combo.clear()
         
-        models = get_available_models()
-        if not models:
-            self.show_error("No models found in Ollama. Please pull at least one model.")
-            return
-        
-        for model in models:
-            model_name = model.get("name")
-            model_size = model.get("details", {}).get("parameter_size", "Unknown size")
-            self.model_combo.addItem(f"{model_name} ({model_size})", model_name)
-        
-        self.log_message(f"Loaded {len(models)} models.")
+        try:
+            models = get_available_models()
+            if not models:
+                self.show_error("No models found in Ollama. Please pull at least one model.")
+                return
+            
+            for model in models:
+                model_name = model.get("name")
+                model_size = model.get("details", {}).get("parameter_size", "Unknown size")
+                self.model_combo.addItem(f"{model_name} ({model_size})", model_name)
+            
+            self.log_message(f"Loaded {len(models)} models.")
+        except Exception as e:
+            self.show_error(f"Error loading models: {str(e)}")
     
     def on_ideas_type_changed(self, button):
         """Handle change in ideas type selection."""
@@ -407,8 +467,12 @@ class AIAgentIdeationGenerator(QMainWindow):
         """Stop the idea generation process."""
         if self.generator_thread and self.generator_thread.isRunning():
             self.log_message("Stopping generation...")
+            self.stop_button.setEnabled(False)  # Prevent multiple clicks
+            self.stop_button.setText("Stopping...")
             self.generator_thread.stop()
-            self.generator_thread.wait()
+            
+            # Don't wait here as it would freeze the UI
+            # Instead, we'll update the UI when the thread signals completion
     
     def update_progress(self, current: int, total: int):
         """Update the progress bar."""
@@ -444,6 +508,7 @@ class AIAgentIdeationGenerator(QMainWindow):
         """Handle completion of the generation process."""
         self.generate_button.setEnabled(True)
         self.stop_button.setEnabled(False)
+        self.stop_button.setText("Stop Generation")
         
         if self.generator_thread and self.generator_thread.unlimited:
             self.log_message(f"Generation stopped. Generated {successful} ideas in {attempts} attempts.")
@@ -456,6 +521,9 @@ class AIAgentIdeationGenerator(QMainWindow):
         self.progress_bar.setMaximum(100)
         self.progress_bar.setValue(100)
         self.progress_label.setText(f"Completed: {successful} ideas generated")
+        
+        # Perform memory cleanup after generation
+        gc.collect()
     
     def log_message(self, message: str, error: bool = False):
         """Add a message to the log."""
@@ -470,9 +538,10 @@ class AIAgentIdeationGenerator(QMainWindow):
         # Add to log
         self.log_text.append(formatted_message)
         
-        # Scroll to bottom
-        scrollbar = self.log_text.verticalScrollBar()
-        scrollbar.setValue(scrollbar.maximum())
+        # Scroll to bottom if auto-scroll is enabled
+        if self.auto_scroll_checkbox.isChecked():
+            scrollbar = self.log_text.verticalScrollBar()
+            scrollbar.setValue(scrollbar.maximum())
     
     def show_error(self, message: str):
         """Show an error message dialog."""
@@ -482,9 +551,26 @@ class AIAgentIdeationGenerator(QMainWindow):
     def closeEvent(self, event):
         """Handle window close event."""
         if self.generator_thread and self.generator_thread.isRunning():
-            self.generator_thread.stop()
-            self.generator_thread.wait()
-        event.accept()
+            # Ask for confirmation if generation is running
+            reply = QMessageBox.question(
+                self, 'Confirm Exit',
+                'Generation is still running. Are you sure you want to exit?',
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            
+            if reply == QMessageBox.StandardButton.Yes:
+                self.generator_thread.stop()
+                self.generator_thread.wait(1000)  # Wait up to 1 second
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
+        
+        # Clean up resources
+        self.cleanup_timer.stop()
+        gc.collect()
 
 def main():
     app = QApplication(sys.argv)
