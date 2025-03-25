@@ -37,11 +37,13 @@ REPO_PATH = os.path.dirname(os.path.abspath(__file__))
 CATEGORIES_FILE = os.path.join(REPO_PATH, "categories.txt")
 TEMPLATE_FILE = os.path.join(REPO_PATH, "templates", "template.md")
 CATEGORIES_DIR = os.path.join(REPO_PATH, "by-category")
+INDEX_FILE = os.path.join(REPO_PATH, "index.md")
 DEFAULT_MODEL = "llama3.2"  # Default to llama3.2
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
 MAX_RETRIES = 3  # Maximum number of retries for failed generations
 RETRY_DELAY = 2  # Delay between retries in seconds
 REQUEST_TIMEOUT = 60  # Timeout for Ollama API requests in seconds
+INDEX_LOCK = threading.Lock()  # Lock for thread-safe index updates
 
 def load_categories() -> List[str]:
     """Load categories from the categories file."""
@@ -231,8 +233,58 @@ def generate_idea_with_ollama(category: str, model: str, template: str) -> Tuple
     # If we get here, all attempts failed
     return f"## 1. Assistant Name:\n\n{category} Assistant (Error)\n\n## 2. Short Description:\n\nError generating idea after {MAX_RETRIES} attempts\n", f"{category.lower()}-assistant-error"
 
+def update_index(assistant_name: str, category: str, file_path: str) -> bool:
+    """Update the index.md file with a new idea entry."""
+    try:
+        # Use a lock to prevent multiple threads from updating the index simultaneously
+        with INDEX_LOCK:
+            # Create the index file if it doesn't exist
+            if not os.path.exists(INDEX_FILE):
+                with open(INDEX_FILE, 'w') as f:
+                    f.write("# AI Agent Ideas Index\n\n")
+                    f.write("This page provides a chronological index of all generated AI agent ideas, with the newest ideas listed first.\n\n")
+                    f.write("| Date Generated | Assistant Name | Category | Link |\n")
+                    f.write("|----------------|----------------|----------|------|\n")
+            
+            # Get the current date and time
+            current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create a relative path for the link
+            relative_path = os.path.relpath(file_path, REPO_PATH)
+            
+            # Create the new row for the table
+            new_row = f"| {current_datetime} | {assistant_name} | {category} | [{assistant_name}]({relative_path}) |\n"
+            
+            # Read the existing content
+            with open(INDEX_FILE, 'r') as f:
+                content = f.readlines()
+            
+            # Find the position to insert the new row (after the table header)
+            insert_position = 0
+            for i, line in enumerate(content):
+                if line.startswith("|----"):
+                    insert_position = i + 1
+                    break
+            
+            # Insert the new row
+            if insert_position > 0:
+                content.insert(insert_position, new_row)
+                
+                # Write the updated content back to the file
+                with open(INDEX_FILE, 'w') as f:
+                    f.writelines(content)
+                
+                return True
+            else:
+                print_error("Could not find table header in index.md")
+                return False
+                
+    except Exception as e:
+        print_error(f"Error updating index: {str(e)}")
+        return False
+
 def save_idea(idea: str, category: str, filename: str) -> str:
-    """Save the generated idea to the appropriate category folder."""
+    """Save the generated idea to the appropriate category folder and update the index."""
     try:
         folder_name = get_category_folder_name(category)
         category_folder = os.path.join(CATEGORIES_DIR, folder_name)
@@ -253,6 +305,16 @@ def save_idea(idea: str, category: str, filename: str) -> str:
         
         with open(file_path, 'w') as f:
             f.write(idea)
+        
+        # Extract the assistant name for the index
+        name_match = re.search(r'## 1\. Assistant Name:\s*\n\s*(.+?)\s*\n', idea)
+        if name_match:
+            assistant_name = name_match.group(1).strip()
+        else:
+            assistant_name = filename.replace('-', ' ').title()
+        
+        # Update the index with the new idea
+        update_index(assistant_name, category, file_path)
         
         return file_path
     except Exception as e:
