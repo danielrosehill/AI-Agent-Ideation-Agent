@@ -1,0 +1,133 @@
+3D Modeling Assistants
+Accessibility Assistants
+ADHD Help
+AI Developer Tools
+AI Engineering
+Audio Editing Assistants
+Automation Planners
+Backoffice Operations
+Backup
+Bookkeeping Assistants
+Brainstorming Partners
+Business Utilities
+Calendar Management
+Career Planning
+Chore
+Code Generation Tools
+Code Refactoring Assistants
+Compliance Assistants
+Context Data Generation
+Context Data Preprocessing
+Cooking
+Creative Writing Assistants
+Customer Service Assistants
+Cybersecurity Assistants
+Data Analysis
+Data Entry Assistants
+Data Governance Assistants
+Data Visualization
+Debugging
+Dev Ops
+Digital Art Assistants
+Documentaries
+Docker
+E-commerce Assistants
+Email Management
+Entertainment Selection
+Event Planning Assistants
+Fashion Design Assistants
+Financial Assistants
+Fitness Training Assistants
+Food And Drink
+Gaming Assistants
+Genealogy Assistants
+Geopolitics
+Grant Writing Assistants
+Graphic Design Assistants
+Hardware Specifications
+Health and Wellbeing
+Healthcare Diagnosis Assistants
+Hebrew
+Home Assistant
+Home Management
+HR Assistants
+Idea Generators
+Image Analysis Utilities
+Interior Design Assistants
+Inventory Management Assistants
+Israel
+Job Hunt Assistants
+Knowledge Management Assistants
+Language Learning
+Legal Assistants
+Linus
+Market Research Assistants
+Marketing Assistants
+Meeting Assistants
+Mental Health
+Movies
+Music Composition Assistants
+Natural Language To Data
+News Summary
+Note-Taking Assistants
+Open Source
+Open Web UI
+Organisation
+Parenting
+Personal Assistants
+Personal Finance Assistants
+Personality Analysis
+Pet Care Assistants
+Philosophical
+Preparedness
+Presentation Assistants
+Productivity
+Productivity Tools
+Programming Education Assistants
+Project Management Assistants
+Prompt Debuggers
+Prompt Engineering
+Pranks
+Purchasing Assistant
+Purchasing Research
+Python
+RAG Optimisation
+Randomisation
+Real Estate Assistants
+Real Time Chat
+Recipe Generation Assistants
+Recruiting Assistants
+Relationship Coaching Assistants
+Remote Collaboration Assistants
+Research
+Resume/CV Builders
+Risk Management Assistants
+Sales Assistants
+Scheduling
+Scientific Research Assistants
+Second Brain
+Side Hustles
+Smart Home Assistants
+Social Media Assistants
+Software Testing Assistants
+Stack Evaluation
+Stack Research
+Streaming Finders
+Supply Chain Assistants
+Sustainability
+System Prompt Editors
+Task Management
+Tech Support
+Text Reformatter
+Text Summary
+Time Management
+Translation Assistants
+Travel Planning Assistants
+Video Editing Assistants
+Virtual Reality Assistants
+Vision Assisted Utilities
+Voice And Speech Tools
+Web Design Assistants
+Website Analytics Assistants
+Wellness
+Writing Assistants
