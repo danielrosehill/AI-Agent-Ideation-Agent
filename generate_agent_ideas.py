@@ -122,9 +122,20 @@ def is_similar_idea(new_idea: str, existing_ideas: List[str], threshold: float =
     
     return False
 
-def create_idea_prompt(category: str, template: str) -> str:
-    """Create a prompt for generating AI agent ideas using Jinja2 templating."""
+def create_idea_prompt(category: str, template: str, creativity_level: str = None) -> str:
+    """Create a prompt for generating AI agent ideas using Jinja2 templating.
+    
+    Args:
+        category: The category for which to generate an idea
+        template: The template to use for the idea
+        creativity_level: The creativity level to use (None for random selection)
+    """
     try:
+        # If no creativity level is specified, randomly select one
+        if creativity_level is None:
+            creativity_levels = ["basic", "moderate", "creative", "highly_creative"]
+            creativity_level = random.choice(creativity_levels)
+        
         # Create Jinja2 template environment
         env = jinja2.Environment(
             loader=jinja2.BaseLoader(),
@@ -132,9 +143,20 @@ def create_idea_prompt(category: str, template: str) -> str:
             lstrip_blocks=True
         )
         
+        # Define creativity-specific instructions
+        creativity_instructions = {
+            "basic": "Create a straightforward, practical, and conventional assistant idea. Focus on solving a common problem in a reliable way without being particularly novel or imaginative.",
+            "moderate": "Create a somewhat creative assistant idea that improves upon existing solutions with some innovative elements.",
+            "creative": "Create an original and imaginative assistant idea that approaches the problem in a novel way.",
+            "highly_creative": "Create an extremely innovative, even quirky or unconventional assistant idea that reimagines how this category could be approached. Don't be afraid to be ambitious, surprising, or even slightly humorous."
+        }
+        
         # Define the prompt template
         prompt_template = env.from_string("""
-You are an AI Agent Ideation Assistant. Your task is to generate a creative, original, and highly specific idea for an AI assistant within the category: {{ category }}.
+You are an AI Agent Ideation Assistant. Your task is to generate a {{ creativity_level }} idea for an AI assistant within the category: {{ category }}.
+
+CREATIVITY LEVEL: {{ creativity_level }}
+{{ creativity_instructions }}
 
 IMPORTANT: Do NOT create a generic assistant that covers the entire category. Instead, focus on a very specific niche, use case, or problem within that category.
 
@@ -157,14 +179,59 @@ Generate a complete, detailed, and creative AI assistant idea for a specific nic
 """)
         
         # Render the template with the provided variables
-        return prompt_template.render(category=category, template=template)
+        return prompt_template.render(
+            category=category, 
+            template=template, 
+            creativity_level=creativity_level.replace('_', ' '),
+            creativity_instructions=creativity_instructions[creativity_level]
+        )
     except Exception as e:
         print_error(f"Error creating prompt: {str(e)}")
         return f"Error creating prompt: {str(e)}"
 
-def generate_idea_with_ollama(category: str, model: str, template: str) -> Tuple[str, str]:
-    """Generate an AI agent idea using Ollama API with retry logic."""
-    prompt = create_idea_prompt(category, template)
+def generate_idea_with_ollama(category: str, model: str, template: str, creativity_level: str = None) -> Tuple[str, str]:
+    """Generate an AI agent idea using Ollama API with retry logic.
+    
+    Args:
+        category: The category for which to generate an idea
+        model: The model to use for generation
+        template: The template to use for the idea
+        creativity_level: The creativity level to use (None for random selection)
+    """
+    # If no creativity level is specified, randomly select one
+    if creativity_level is None:
+        creativity_levels = ["basic", "moderate", "creative", "highly_creative"]
+        creativity_level = random.choice(creativity_levels)
+    
+    # Set temperature based on creativity level
+    temperature_settings = {
+        "basic": 0.5,       # Lower temperature for more predictable, conventional ideas
+        "moderate": 0.7,    # Moderate temperature for some creativity
+        "creative": 0.85,   # Higher temperature for more creative ideas
+        "highly_creative": 1.0  # Maximum temperature for highly creative, potentially quirky ideas
+    }
+    
+    # Set frequency and presence penalties based on creativity level
+    frequency_penalty_settings = {
+        "basic": 0.1,
+        "moderate": 0.2,
+        "creative": 0.3,
+        "highly_creative": 0.4
+    }
+    
+    presence_penalty_settings = {
+        "basic": 0.1,
+        "moderate": 0.2,
+        "creative": 0.3,
+        "highly_creative": 0.4
+    }
+    
+    # Get temperature for the selected creativity level
+    temperature = temperature_settings[creativity_level]
+    frequency_penalty = frequency_penalty_settings[creativity_level]
+    presence_penalty = presence_penalty_settings[creativity_level]
+    
+    prompt = create_idea_prompt(category, template, creativity_level)
     
     # Try multiple times in case of failure
     for attempt in range(MAX_RETRIES):
@@ -176,10 +243,10 @@ def generate_idea_with_ollama(category: str, model: str, template: str) -> Tuple
                     "prompt": prompt,
                     "stream": False,
                     "options": {
-                        "temperature": 0.85,  # Increased for more creativity
-                        "top_p": 0.92,        # Slightly increased
-                        "frequency_penalty": 0.3,  # Increased to reduce repetition
-                        "presence_penalty": 0.3    # Increased to encourage novelty
+                        "temperature": temperature,
+                        "top_p": 0.92,
+                        "frequency_penalty": frequency_penalty,
+                        "presence_penalty": presence_penalty
                     }
                 },
                 timeout=REQUEST_TIMEOUT

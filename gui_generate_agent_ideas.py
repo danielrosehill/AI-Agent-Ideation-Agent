@@ -62,17 +62,18 @@ class IdeaGeneratorThread(QThread):
     
     # Signals for updating the UI
     progress_updated = pyqtSignal(int, int)  # current, total
-    idea_generated = pyqtSignal(str, str, str)  # assistant name, category, file path
+    idea_generated = pyqtSignal(str, str, str, str)  # assistant name, category, file path, creativity level
     log_message = pyqtSignal(str)  # log message
     error_occurred = pyqtSignal(str)  # error message
     generation_complete = pyqtSignal()  # emitted when generation is complete
     
-    def __init__(self, model: str, num_ideas: int, similarity_threshold: float, unlimited: bool = False):
+    def __init__(self, model: str, num_ideas: int, similarity_threshold: float, unlimited: bool = False, use_creativity_distribution: bool = True):
         super().__init__()
         self.model = model
         self.num_ideas = num_ideas
         self.similarity_threshold = similarity_threshold
         self.unlimited = unlimited
+        self.use_creativity_distribution = use_creativity_distribution
         self.running = True
         self.categories = load_categories()
         self.template = load_template()
@@ -97,7 +98,14 @@ class IdeaGeneratorThread(QThread):
                 # Randomly select a category
                 category = random.choice(self.categories)
                 
-                self.log_message.emit(f"Generating idea for category: {category}")
+                # Randomly select a creativity level if distribution is enabled
+                creativity_level = None
+                if self.use_creativity_distribution:
+                    creativity_levels = ["basic", "moderate", "creative", "highly_creative"]
+                    creativity_level = random.choice(creativity_levels)
+                
+                self.log_message.emit(f"Generating idea for category: {category}" + 
+                                     (f" (Creativity: {creativity_level.replace('_', ' ')})" if creativity_level else ""))
                 
                 # Try to generate with retries
                 retry_count = 0
@@ -105,7 +113,7 @@ class IdeaGeneratorThread(QThread):
                 while retry_count < MAX_RETRIES and not generation_successful and self.running:
                     try:
                         # Generate the idea
-                        idea, filename = generate_idea_with_ollama(category, self.model, self.template)
+                        idea, filename = generate_idea_with_ollama(category, self.model, self.template, creativity_level)
                         
                         # Check if the idea is similar to existing ideas
                         category_folder = os.path.join(CATEGORIES_DIR, get_category_folder_name(category))
@@ -125,14 +133,17 @@ class IdeaGeneratorThread(QThread):
                         else:
                             assistant_name = filename.replace('-', ' ').title()
                         
-                        self.log_message.emit(f"Generated: {assistant_name} (Category: {category})")
+                        # Format creativity level for display
+                        display_creativity = creativity_level.replace('_', ' ').title() if creativity_level else "Random"
+                        
+                        self.log_message.emit(f"Generated: {assistant_name} (Category: {category}, Creativity: {display_creativity})")
                         self.log_message.emit(f"Saved to: {file_path}")
                         
                         # Update the index
-                        update_index(category, assistant_name, file_path)
+                        update_index(assistant_name, category, file_path)
                         
                         # Emit the idea generated signal
-                        self.idea_generated.emit(assistant_name, category, file_path)
+                        self.idea_generated.emit(assistant_name, category, file_path, display_creativity if creativity_level else "Random")
                         
                         successful_generations += 1
                         self.progress_updated.emit(successful_generations, self.num_ideas)
@@ -289,6 +300,11 @@ class MainWindow(QMainWindow):
         self.similarity_label = QLabel("0.80")
         similarity_layout.addWidget(self.similarity_label)
         
+        # Creativity distribution
+        self.creativity_checkbox = QCheckBox("Use creativity distribution")
+        self.creativity_checkbox.setChecked(True)
+        advanced_layout.addWidget(self.creativity_checkbox)
+        
         # Auto-scroll checkbox
         self.auto_scroll_checkbox = QCheckBox("Auto-scroll log")
         self.auto_scroll_checkbox.setChecked(True)
@@ -346,6 +362,7 @@ class MainWindow(QMainWindow):
         self.similarity_slider.valueChanged.connect(self.update_similarity_label)
         self.unlimited_checkbox.stateChanged.connect(self.toggle_unlimited)
         self.auto_scroll_checkbox.stateChanged.connect(self.toggle_auto_scroll)
+        self.creativity_checkbox.stateChanged.connect(self.toggle_creativity_distribution)
         
         # Initialize the UI
         self.refresh_models()
@@ -401,6 +418,10 @@ class MainWindow(QMainWindow):
         """Toggle auto-scrolling of the log."""
         self.auto_scroll = state == Qt.CheckState.Checked.value
     
+    def toggle_creativity_distribution(self, state: int):
+        """Toggle the creativity distribution."""
+        self.creativity_checkbox.setChecked(state == Qt.CheckState.Checked.value)
+    
     def get_num_ideas(self) -> int:
         """Get the number of ideas to generate."""
         if self.custom_radio.isChecked():
@@ -432,6 +453,9 @@ class MainWindow(QMainWindow):
         # Get the similarity threshold
         similarity_threshold = self.similarity_slider.value() / 100.0
         
+        # Get the creativity distribution
+        use_creativity_distribution = self.creativity_checkbox.isChecked()
+        
         # Update the UI
         self.start_button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -448,9 +472,10 @@ class MainWindow(QMainWindow):
         self.log_message(f"Starting generation with model: {model}")
         self.log_message(f"Number of ideas: {'Unlimited' if unlimited else num_ideas}")
         self.log_message(f"Similarity threshold: {similarity_threshold:.2f}")
+        self.log_message(f"Creativity distribution: {'Enabled' if use_creativity_distribution else 'Disabled'}")
         
         # Create and start the generator thread
-        self.generator_thread = IdeaGeneratorThread(model, num_ideas, similarity_threshold, unlimited)
+        self.generator_thread = IdeaGeneratorThread(model, num_ideas, similarity_threshold, unlimited, use_creativity_distribution)
         self.generator_thread.progress_updated.connect(self.update_progress)
         self.generator_thread.idea_generated.connect(self.idea_generated)
         self.generator_thread.log_message.connect(self.log_message)
@@ -488,7 +513,7 @@ class MainWindow(QMainWindow):
             self.progress_bar.setValue(current)
             self.progress_label.setText(f"{current}/{total}")
     
-    def idea_generated(self, assistant_name: str, category: str, file_path: str):
+    def idea_generated(self, assistant_name: str, category: str, file_path: str, creativity_level: str):
         """Handle a generated idea."""
         # This method can be extended to do more with the generated ideas
         pass
